@@ -26,8 +26,8 @@ st.set_page_config(
 EMBEDDINGS_PATH = "vector_store/embeddings.npy"
 CHUNKS_PATH = "vector_store/chunks.json"
 
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-LLM_MODEL = "gpt2"
+EMBEDDING_MODEL = "paraphrase-MiniLM-L3-v2"
+LLM_MODEL = "sshleifer/tiny-gpt2"
 
 TOP_K = 3
 SIMILARITY_THRESHOLD = 0.30
@@ -344,8 +344,8 @@ st.markdown(
 st.markdown(
     f'<div class="stats-bar">'
     f"📊 <strong>Vector Store:</strong> {len(chunks)} chunks indexed &nbsp; | &nbsp; "
-    f"🤖 <strong>LLM:</strong> GPT-2 &nbsp; | &nbsp; "
-    f"🔗 <strong>Embeddings:</strong> all-MiniLM-L6-v2"
+    f"🤖 <strong>LLM:</strong> tiny-gpt2 &nbsp; | &nbsp; "
+    f"🔗 <strong>Embeddings:</strong> paraphrase-MiniLM-L3-v2"
     f"</div>",
     unsafe_allow_html=True,
 )
@@ -457,7 +457,7 @@ if ask_clicked and query:
 # Footer
 st.markdown(
     '<div class="footer">'
-    "Built with Streamlit &nbsp;•&nbsp; Embedding: all-MiniLM-L6-v2 &nbsp;•&nbsp; LLM: GPT-2"
+    "Built with Streamlit &nbsp;•&nbsp; Embedding: paraphrase-MiniLM-L3-v2 &nbsp;•&nbsp; LLM: tiny-gpt2"
     "</div>",
     unsafe_allow_html=True,
 )
