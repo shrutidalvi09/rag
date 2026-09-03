@@ -527,7 +527,6 @@ with gr.Blocks(title="RAG Assistant") as demo:
         ),
         submit_btn="Send",
         stop_btn="Stop",
-        clear_btn="Clear",
     )
 
     # ---- Footer ----
