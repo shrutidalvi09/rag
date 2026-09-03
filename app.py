@@ -148,8 +148,7 @@ def respond(message, history):
 
         answer = context_parts[0][:300] + "..."
 
-    # Add sources as expandable section
-    sources = "\n\n<details><summary>📄 View Sources</summary>\n\n"
+    sources = "\n\n---\n**Sources:**\n"
 
     for result in results:
 
@@ -158,12 +157,9 @@ def respond(message, history):
         score_pct = result["score"] * 100
 
         sources += (
-            f"**{result['rank']}. {chunk.get('filename', 'Unknown')}** "
-            f"— Relevance: {score_pct:.0f}%\n"
-            f"> {chunk.get('text', '')[:250]}...\n\n"
+            f"- **{chunk.get('filename', 'Unknown')}** "
+            f"(Relevance: {score_pct:.0f}%)\n"
         )
-
-    sources += "</details>"
 
     return answer + sources
 
@@ -174,18 +170,8 @@ def respond(message, history):
 
 CUSTOM_CSS = """
 
-/* Hide default footer */
 footer { display: none !important; }
 
-/* Page background */
-.gradio-container {
-    background: linear-gradient(135deg, #f5f7ff 0%, #e8ecff 50%, #f0f3ff 100%) !important;
-    max-width: 900px !important;
-    margin: auto !important;
-    padding: 10px !important;
-}
-
-/* Title */
 .app-title {
     text-align: center;
     font-size: 2.4em !important;
@@ -194,7 +180,6 @@ footer { display: none !important; }
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 0 !important;
-    letter-spacing: -0.5px;
 }
 
 .app-subtitle {
@@ -205,7 +190,6 @@ footer { display: none !important; }
     margin-bottom: 1rem !important;
 }
 
-/* Stats card */
 .stats-card {
     background: white;
     border-radius: 14px;
@@ -218,11 +202,8 @@ footer { display: none !important; }
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
-.stats-card strong {
-    color: #667eea;
-}
+.stats-card strong { color: #667eea; }
 
-/* Example buttons */
 .example-chip {
     border-radius: 20px !important;
     border: 1.5px solid #d0d5ff !important;
@@ -230,7 +211,6 @@ footer { display: none !important; }
     font-size: 0.82em !important;
     padding: 6px 14px !important;
     transition: all 0.25s ease !important;
-    cursor: pointer !important;
 }
 
 .example-chip:hover {
@@ -241,77 +221,6 @@ footer { display: none !important; }
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
 }
 
-/* Chatbot */
-.chatbot {
-    border-radius: 20px !important;
-    border: 1px solid #e0e0e0 !important;
-    min-height: 480px !important;
-    background: white !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important;
-}
-
-/* Input */
-.chat-input textarea {
-    border-radius: 20px !important;
-    border: 2px solid #e0e0e0 !important;
-    font-size: 1em !important;
-    padding: 14px 18px !important;
-    transition: all 0.3s ease !important;
-    background: #fafbff !important;
-}
-
-.chat-input textarea:focus {
-    border-color: #667eea !important;
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12) !important;
-    background: white !important;
-}
-
-/* Send button */
-.send-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 20px !important;
-    font-weight: 700 !important;
-    font-size: 1em !important;
-    padding: 10px 28px !important;
-    transition: all 0.3s ease !important;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
-}
-
-.send-btn:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5) !important;
-}
-
-.send-btn:active {
-    transform: translateY(0) !important;
-}
-
-/* Stop button */
-.stop-btn {
-    border-radius: 20px !important;
-    background: #ff4b4b !important;
-    color: white !important;
-    border: none !important;
-}
-
-/* Clear button */
-.clear-btn {
-    border-radius: 20px !important;
-    border: 2px solid #e0e0e0 !important;
-    background: white !important;
-    font-weight: 600 !important;
-    transition: all 0.3s ease !important;
-}
-
-.clear-btn:hover {
-    border-color: #ff4b4b !important;
-    color: #ff4b4b !important;
-    background: #fff5f5 !important;
-}
-
-/* Footer */
 .app-footer {
     text-align: center;
     color: #bbb;
@@ -320,10 +229,7 @@ footer { display: none !important; }
     padding: 0.5rem;
 }
 
-.app-footer span {
-    color: #667eea;
-    font-weight: 600;
-}
+.app-footer span { color: #667eea; font-weight: 600; }
 """
 
 
@@ -331,15 +237,13 @@ footer { display: none !important; }
 # Build UI
 # ============================================================
 
-with gr.Blocks(css=CUSTOM_CSS, title="RAG Chatbot", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="RAG Chatbot") as demo:
 
-    # Header
     gr.HTML(
         '<div class="app-title">📚 RAG Assistant</div>'
         '<p class="app-subtitle">Ask anything about your documents</p>'
     )
 
-    # Stats
     gr.HTML(
         f'<div class="stats-card">'
         f"📊 <strong>{len(chunks)}</strong> chunks indexed &nbsp;&bull;&nbsp; "
@@ -348,39 +252,31 @@ with gr.Blocks(css=CUSTOM_CSS, title="RAG Chatbot", theme=gr.themes.Soft()) as d
         f"</div>"
     )
 
-    # Example chips
-    with gr.Row(elem_classes=["examples-row"]):
+    with gr.Row():
 
-        for i, ex in enumerate(EXAMPLES):
+        for ex in EXAMPLES[:4]:
 
             btn = gr.Button(ex, elem_classes=["example-chip"], scale=1, min_width=0)
 
-    gr.HTML('<div style="margin: 0.5rem 0;"></div>')
+    with gr.Row():
 
-    # Chat interface
+        for ex in EXAMPLES[4:]:
+
+            btn = gr.Button(ex, elem_classes=["example-chip"], scale=1, min_width=0)
+
     gr.ChatInterface(
         fn=respond,
-        chatbot=gr.Chatbot(
-            height=480,
-            show_copy_button=True,
-            avatar_images=(
-                None,
-                "https://em-content.zobj.net/source/twitter/408/books_1f4da.png",
-            ),
-            placeholder="Ask me anything about your documents...",
-        ),
+        chatbot=gr.Chatbot(height=480),
         textbox=gr.Textbox(
             placeholder="Type your question here...",
             container=False,
             scale=7,
-            elem_classes=["chat-input"],
         ),
         submit_btn="Send ➤",
         stop_btn="⏹ Stop",
         clear_btn="🗑 Clear",
     )
 
-    # Footer
     gr.HTML(
         '<div class="app-footer">'
         "Built with <span>Gradio</span> &bull; "
@@ -401,4 +297,6 @@ if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
+        css=CUSTOM_CSS,
+        theme=gr.themes.Soft(),
     )
