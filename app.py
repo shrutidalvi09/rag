@@ -2,8 +2,6 @@ import json
 import numpy as np
 import gradio as gr
 
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 from huggingface_hub import InferenceClient
 
 
@@ -14,7 +12,7 @@ from huggingface_hub import InferenceClient
 EMBEDDINGS_PATH = "vector_store/embeddings.npy"
 CHUNKS_PATH = "vector_store/chunks.json"
 
-EMBEDDING_MODEL = "paraphrase-MiniLM-L3-v2"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 LLM_MODEL = "sshleifer/tiny-gpt2"
 
 TOP_K = 3
@@ -33,7 +31,7 @@ EXAMPLES = [
 
 
 # ============================================================
-# Load models
+# Load data only (no ML models)
 # ============================================================
 
 print("Loading vector store...", flush=True)
@@ -44,13 +42,24 @@ with open(CHUNKS_PATH, "r", encoding="utf-8") as file:
 
 print(f"Chunks: {len(chunks)}", flush=True)
 
-print("Loading embedding model...", flush=True)
-embedding_model = SentenceTransformer(EMBEDDING_MODEL)
-
 print("Initializing HuggingFace Inference API...", flush=True)
 hf_client = InferenceClient()
 
-print("All models loaded!\n", flush=True)
+print("All loaded!\n", flush=True)
+
+
+# ============================================================
+# Embed query via HuggingFace API
+# ============================================================
+
+def get_embedding(text):
+
+    result = hf_client.feature_extraction(
+        text,
+        model=EMBEDDING_MODEL,
+    )
+
+    return result[0]
 
 
 # ============================================================
@@ -63,11 +72,10 @@ def ask_question(query):
 
         return "Please enter a question.", ""
 
-    # Create query embedding
-    query_embedding = embedding_model.encode(
-        [query],
-        normalize_embeddings=True
-    )
+    # Get query embedding via API
+    query_embedding = get_embedding(query)
+
+    query_embedding = query_embedding / np.linalg.norm(query_embedding)
 
     # Normalize stored embeddings
     embeddings_norm = embeddings / np.linalg.norm(
@@ -77,10 +85,7 @@ def ask_question(query):
     )
 
     # Calculate similarity
-    similarities = cosine_similarity(
-        query_embedding,
-        embeddings_norm
-    )[0]
+    similarities = np.dot(embeddings_norm, query_embedding)
 
     # Sort by score
     top_indices = similarities.argsort()[::-1]
@@ -150,7 +155,7 @@ def ask_question(query):
 
     except Exception as e:
 
-        answer = f"Error generating answer: {str(e)}"
+        answer = f"Error: {str(e)}"
 
     # Build sources
     sources = ""
@@ -233,7 +238,6 @@ demo = gr.Interface(
 if __name__ == "__main__":
 
     print("Starting Gradio app...", flush=True)
-    print("Local URL: http://localhost:7860", flush=True)
 
     demo.launch(
         server_name="0.0.0.0",
