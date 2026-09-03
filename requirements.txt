@@ -2,5 +2,4 @@ streamlit
 numpy
 scikit-learn
 sentence-transformers
-transformers
-torch
+huggingface_hub

@@ -4,7 +4,7 @@ import streamlit as st
 
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from transformers import pipeline
+from huggingface_hub import InferenceClient
 
 
 # ============================================================
@@ -50,13 +50,11 @@ EXAMPLES = [
 
 st.markdown("""
 <style>
-    /* Main container */
     .stApp {
         max-width: 1000px;
         margin: 0 auto;
     }
 
-    /* Title styling */
     h1 {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         -webkit-background-clip: text;
@@ -65,7 +63,6 @@ st.markdown("""
         font-weight: 700 !important;
     }
 
-    /* Subtitle */
     .subtitle {
         text-align: center;
         color: #666;
@@ -73,7 +70,6 @@ st.markdown("""
         margin-bottom: 2rem;
     }
 
-    /* Example buttons */
     .stButton > button {
         border-radius: 20px;
         border: 1.5px solid #d0d5ff;
@@ -90,7 +86,6 @@ st.markdown("""
         color: #667eea;
     }
 
-    /* Ask button */
     .ask-btn > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         color: white !important;
@@ -107,7 +102,6 @@ st.markdown("""
         box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
     }
 
-    /* Answer box */
     .answer-container {
         background: #f8f9ff;
         border: 2px solid #e8ecff;
@@ -116,7 +110,6 @@ st.markdown("""
         margin: 1rem 0;
     }
 
-    /* Sources panel */
     .sources-container {
         background: #fafbff;
         border: 1px solid #e8ecff;
@@ -125,7 +118,6 @@ st.markdown("""
         margin: 1rem 0;
     }
 
-    /* Stats bar */
     .stats-bar {
         background: linear-gradient(135deg, #f5f7ff 0%, #f0f3ff 100%);
         border-radius: 10px;
@@ -136,7 +128,6 @@ st.markdown("""
         margin-bottom: 1rem;
     }
 
-    /* Source cards */
     .source-card {
         background: white;
         border: 1px solid #e8ecff;
@@ -150,14 +141,12 @@ st.markdown("""
         border-color: #667eea;
     }
 
-    /* Divider */
     hr {
         border: none;
         border-top: 1px solid #e8ecff;
         margin: 1.5rem 0;
     }
 
-    /* Footer */
     .footer {
         text-align: center;
         color: #999;
@@ -166,7 +155,6 @@ st.markdown("""
         padding: 1rem;
     }
 
-    /* Input focus */
     .stTextArea textarea {
         border-radius: 12px !important;
         border: 2px solid #e0e0e0 !important;
@@ -199,23 +187,19 @@ def load_models():
     print("Loading embedding model...", flush=True)
     embedding_model = SentenceTransformer(EMBEDDING_MODEL)
 
-    print("Loading LLM (GPT-2)...", flush=True)
-    llm = pipeline(
-        "text-generation",
-        model=LLM_MODEL,
-        truncation=True
-    )
+    print("Initializing HuggingFace Inference API...", flush=True)
+    hf_client = InferenceClient()
 
     print("All models loaded!\n", flush=True)
 
-    return embeddings, chunks, embedding_model, llm
+    return embeddings, chunks, embedding_model, hf_client
 
 
 # ============================================================
 # RAG Function
 # ============================================================
 
-def ask_question(query, embeddings, chunks, embedding_model, llm):
+def ask_question(query, embeddings, chunks, embedding_model, hf_client):
 
     if not query or not query.strip():
 
@@ -279,7 +263,7 @@ def ask_question(query, embeddings, chunks, embedding_model, llm):
 
     context = "\n".join(context_parts)
 
-    # Generate answer
+    # Generate answer using HuggingFace Inference API
     prompt = (
         f"Based on the following information, "
         f"answer the question.\n\n"
@@ -288,19 +272,27 @@ def ask_question(query, embeddings, chunks, embedding_model, llm):
         f"Answer:"
     )
 
-    output = llm(
-        prompt,
-        max_new_tokens=150,
-        temperature=0.7,
-        do_sample=True,
-        truncation=True
-    )
+    try:
 
-    generated_text = output[0]["generated_text"]
+        generated_text = hf_client.text_generation(
+            prompt,
+            model=LLM_MODEL,
+            max_new_tokens=150,
+            temperature=0.7,
+            do_sample=True,
+        )
 
-    answer_start = generated_text.find("Answer:") + len("Answer:")
+        answer_start = generated_text.find("Answer:") + len("Answer:")
 
-    answer = generated_text[answer_start:].strip().split("\n")[0]
+        answer = generated_text[answer_start:].strip().split("\n")[0]
+
+        if not answer:
+
+            answer = generated_text.strip()
+
+    except Exception as e:
+
+        answer = f"Error generating answer: {str(e)}"
 
     # Build sources
     sources = []
@@ -331,7 +323,7 @@ def ask_question(query, embeddings, chunks, embedding_model, llm):
 # ============================================================
 
 # Load models
-embeddings, chunks, embedding_model, llm = load_models()
+embeddings, chunks, embedding_model, hf_client = load_models()
 
 # Header
 st.markdown(
@@ -344,7 +336,7 @@ st.markdown(
 st.markdown(
     f'<div class="stats-bar">'
     f"📊 <strong>Vector Store:</strong> {len(chunks)} chunks indexed &nbsp; | &nbsp; "
-    f"🤖 <strong>LLM:</strong> tiny-gpt2 &nbsp; | &nbsp; "
+    f"🤖 <strong>LLM:</strong> tiny-gpt2 (API) &nbsp; | &nbsp; "
     f"🔗 <strong>Embeddings:</strong> paraphrase-MiniLM-L3-v2"
     f"</div>",
     unsafe_allow_html=True,
@@ -406,7 +398,7 @@ if ask_clicked and query:
     with st.spinner("🔍 Searching documents and generating answer..."):
 
         answer, sources, stats = ask_question(
-            query, embeddings, chunks, embedding_model, llm
+            query, embeddings, chunks, embedding_model, hf_client
         )
 
     if answer is None:
@@ -457,7 +449,7 @@ if ask_clicked and query:
 # Footer
 st.markdown(
     '<div class="footer">'
-    "Built with Streamlit &nbsp;•&nbsp; Embedding: paraphrase-MiniLM-L3-v2 &nbsp;•&nbsp; LLM: tiny-gpt2"
+    "Built with Streamlit &nbsp;•&nbsp; Embedding: paraphrase-MiniLM-L3-v2 (local) &nbsp;•&nbsp; LLM: tiny-gpt2 (HuggingFace API)"
     "</div>",
     unsafe_allow_html=True,
 )
