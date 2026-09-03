@@ -1,22 +1,10 @@
 import json
 import numpy as np
-import streamlit as st
+import gradio as gr
 
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from huggingface_hub import InferenceClient
-
-
-# ============================================================
-# Page Config
-# ============================================================
-
-st.set_page_config(
-    page_title="Personal RAG Assistant",
-    page_icon="📚",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
 
 
 # ============================================================
@@ -33,177 +21,47 @@ TOP_K = 3
 SIMILARITY_THRESHOLD = 0.30
 
 EXAMPLES = [
-    "What is Docker?",
-    "What is an EC2 instance?",
-    "How do I connect to a Linux server?",
-    "What is DNS?",
-    "What is HTTPS?",
-    "What is a virtual machine?",
-    "How does cloud computing work?",
-    "What is an API?",
+    ["What is Docker?"],
+    ["What is an EC2 instance?"],
+    ["How do I connect to a Linux server?"],
+    ["What is DNS?"],
+    ["What is HTTPS?"],
+    ["What is a virtual machine?"],
+    ["How does cloud computing work?"],
+    ["What is an API?"],
 ]
 
 
 # ============================================================
-# Custom CSS
+# Load models
 # ============================================================
 
-st.markdown("""
-<style>
-    .stApp {
-        max-width: 1000px;
-        margin: 0 auto;
-    }
+print("Loading vector store...", flush=True)
+embeddings = np.load(EMBEDDINGS_PATH)
 
-    h1 {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        font-weight: 700 !important;
-    }
+with open(CHUNKS_PATH, "r", encoding="utf-8") as file:
+    chunks = json.load(file)
 
-    .subtitle {
-        text-align: center;
-        color: #666;
-        font-size: 1.1em;
-        margin-bottom: 2rem;
-    }
+print(f"Chunks: {len(chunks)}", flush=True)
 
-    .stButton > button {
-        border-radius: 20px;
-        border: 1.5px solid #d0d5ff;
-        background: white;
-        padding: 0.4rem 1.2rem;
-        font-size: 0.85rem;
-        transition: all 0.2s ease;
-        width: 100%;
-    }
+print("Loading embedding model...", flush=True)
+embedding_model = SentenceTransformer(EMBEDDING_MODEL)
 
-    .stButton > button:hover {
-        background: #f0f3ff;
-        border-color: #667eea;
-        color: #667eea;
-    }
+print("Initializing HuggingFace Inference API...", flush=True)
+hf_client = InferenceClient()
 
-    .ask-btn > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 12px !important;
-        font-size: 1.05rem !important;
-        font-weight: 600 !important;
-        padding: 0.6rem 2rem !important;
-        width: 100%;
-    }
-
-    .ask-btn > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
-
-    .answer-container {
-        background: #f8f9ff;
-        border: 2px solid #e8ecff;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-    }
-
-    .sources-container {
-        background: #fafbff;
-        border: 1px solid #e8ecff;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-    }
-
-    .stats-bar {
-        background: linear-gradient(135deg, #f5f7ff 0%, #f0f3ff 100%);
-        border-radius: 10px;
-        padding: 0.8rem 1.2rem;
-        font-size: 0.9em;
-        color: #555;
-        border: 1px solid #e8ecff;
-        margin-bottom: 1rem;
-    }
-
-    .source-card {
-        background: white;
-        border: 1px solid #e8ecff;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.8rem 0;
-        transition: border-color 0.2s;
-    }
-
-    .source-card:hover {
-        border-color: #667eea;
-    }
-
-    hr {
-        border: none;
-        border-top: 1px solid #e8ecff;
-        margin: 1.5rem 0;
-    }
-
-    .footer {
-        text-align: center;
-        color: #999;
-        font-size: 0.85em;
-        margin-top: 3rem;
-        padding: 1rem;
-    }
-
-    .stTextArea textarea {
-        border-radius: 12px !important;
-        border: 2px solid #e0e0e0 !important;
-        font-size: 1rem !important;
-    }
-
-    .stTextArea textarea:focus {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-
-# ============================================================
-# Load models (cached)
-# ============================================================
-
-@st.cache_resource
-def load_models():
-
-    print("Loading vector store...", flush=True)
-    embeddings = np.load(EMBEDDINGS_PATH)
-
-    with open(CHUNKS_PATH, "r", encoding="utf-8") as file:
-        chunks = json.load(file)
-
-    print(f"Chunks: {len(chunks)}", flush=True)
-
-    print("Loading embedding model...", flush=True)
-    embedding_model = SentenceTransformer(EMBEDDING_MODEL)
-
-    print("Initializing HuggingFace Inference API...", flush=True)
-    hf_client = InferenceClient()
-
-    print("All models loaded!\n", flush=True)
-
-    return embeddings, chunks, embedding_model, hf_client
+print("All models loaded!\n", flush=True)
 
 
 # ============================================================
 # RAG Function
 # ============================================================
 
-def ask_question(query, embeddings, chunks, embedding_model, hf_client):
+def ask_question(query):
 
     if not query or not query.strip():
 
-        return None, None, "Please enter a question."
+        return "Please enter a question.", ""
 
     # Create query embedding
     query_embedding = embedding_model.encode(
@@ -250,7 +108,7 @@ def ask_question(query, embeddings, chunks, embedding_model, hf_client):
 
     if not results:
 
-        return None, None, "No relevant documents found. Try rephrasing your question."
+        return "No relevant documents found. Try rephrasing your question.", ""
 
     # Build context
     context_parts = []
@@ -263,7 +121,7 @@ def ask_question(query, embeddings, chunks, embedding_model, hf_client):
 
     context = "\n".join(context_parts)
 
-    # Generate answer using HuggingFace Inference API
+    # Generate answer using HuggingFace API
     prompt = (
         f"Based on the following information, "
         f"answer the question.\n\n"
@@ -295,163 +153,76 @@ def ask_question(query, embeddings, chunks, embedding_model, hf_client):
         answer = f"Error generating answer: {str(e)}"
 
     # Build sources
-    sources = []
+    sources = ""
 
     for result in results:
 
         chunk = result["chunk"]
 
-        sources.append({
-            "rank": result["rank"],
-            "score": result["score"],
-            "filename": chunk.get("filename", "Unknown"),
-            "text": chunk.get("text", ""),
-        })
+        score_pct = result["score"] * 100
 
-    # Stats
-    stats = {
-        "matches": len(results),
-        "top_score": results[0]["score"],
-        "total_chunks": len(chunks),
-    }
+        sources += (
+            f"### Source {result['rank']} — {chunk.get('filename', 'Unknown')}\n"
+            f"**Relevance:** {score_pct:.1f}%\n\n"
+            f"> {chunk.get('text', '')}\n\n"
+            f"---\n\n"
+        )
 
-    return answer, sources, stats
-
-
-# ============================================================
-# UI
-# ============================================================
-
-# Load models
-embeddings, chunks, embedding_model, hf_client = load_models()
-
-# Header
-st.markdown(
-    '<h1>📚 Personal Document RAG Assistant</h1>'
-    '<p class="subtitle">Ask questions about your documents — powered by AI search & generation</p>',
-    unsafe_allow_html=True,
-)
-
-# Stats bar
-st.markdown(
-    f'<div class="stats-bar">'
-    f"📊 <strong>Vector Store:</strong> {len(chunks)} chunks indexed &nbsp; | &nbsp; "
-    f"🤖 <strong>LLM:</strong> tiny-gpt2 (API) &nbsp; | &nbsp; "
-    f"🔗 <strong>Embeddings:</strong> paraphrase-MiniLM-L3-v2"
-    f"</div>",
-    unsafe_allow_html=True,
-)
-
-# Example questions
-st.markdown("**💡 Try these questions:**")
-
-cols = st.columns(4)
-
-for i, example in enumerate(EXAMPLES):
-
-    col = cols[i % 4]
-
-    with col:
-
-        if st.button(example, key=f"ex_{i}", use_container_width=True):
-
-            st.session_state["query"] = example
-
-            st.rerun()
-
-# Divider
-st.markdown("---")
-
-# Query input
-query = st.text_area(
-    "",
-    value=st.session_state.get("query", ""),
-    placeholder="Ask anything about your documents...",
-    height=68,
-    key="query_input",
-    label_visibility="collapsed",
-)
-
-# Action buttons
-col1, col2, col3 = st.columns([4, 1, 1])
-
-with col1:
-
-    ask_clicked = st.button(
-        "🔍  Ask Question",
-        type="primary",
-        use_container_width=True,
-        key="ask_btn",
+    stats = (
+        f"**Results:** {len(results)} matches | "
+        f"**Top Score:** {results[0]['score']:.4f} | "
+        f"**Chunks:** {len(chunks)}"
     )
 
-with col2:
+    return answer, sources + "\n\n" + stats
 
-    if st.button("✕  Clear", use_container_width=True):
 
-        st.session_state["query"] = ""
+# ============================================================
+# CSS
+# ============================================================
 
-        st.rerun()
+CUSTOM_CSS = """
+.main-title {
+    text-align: center;
+    font-size: 2em !important;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
 
-# Process query
-if ask_clicked and query:
+.main-subtitle {
+    text-align: center;
+    color: #666;
+    font-size: 1.05em;
+}
 
-    with st.spinner("🔍 Searching documents and generating answer..."):
+footer { display: none !important; }
+"""
 
-        answer, sources, stats = ask_question(
-            query, embeddings, chunks, embedding_model, hf_client
-        )
 
-    if answer is None:
+# ============================================================
+# Build UI
+# ============================================================
 
-        st.error(stats)
-
-    else:
-
-        # Answer
-        st.markdown("---")
-
-        st.markdown("### 💬 Answer")
-
-        st.markdown(
-            f'<div class="answer-container">{answer}</div>',
-            unsafe_allow_html=True,
-        )
-
-        # Stats
-        if isinstance(stats, dict):
-
-            st.markdown(
-                f'<div class="stats-bar">'
-                f"✅ <strong>{stats['matches']}</strong> matches found &nbsp; | &nbsp; "
-                f"🎯 Top score: <strong>{stats['top_score']:.4f}</strong> &nbsp; | &nbsp; "
-                f"📦 Searched <strong>{stats['total_chunks']}</strong> chunks"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-        # Sources
-        st.markdown("### 📑 Sources & References")
-
-        for src in sources:
-
-            score_pct = src["score"] * 100
-
-            st.markdown(
-                f'<div class="source-card">'
-                f"<strong>📄 Source {src['rank']}</strong> — {src['filename']}<br>"
-                f'<span style="color:#667eea;">Relevance: {score_pct:.1f}%</span>'
-                f"<br><br>"
-                f"<em>{src['text']}</em>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-# Footer
-st.markdown(
-    '<div class="footer">'
-    "Built with Streamlit &nbsp;•&nbsp; Embedding: paraphrase-MiniLM-L3-v2 (local) &nbsp;•&nbsp; LLM: tiny-gpt2 (HuggingFace API)"
-    "</div>",
-    unsafe_allow_html=True,
+demo = gr.Interface(
+    fn=ask_question,
+    inputs=gr.Textbox(
+        label="Ask a question",
+        placeholder="e.g. What is Docker?",
+        lines=1
+    ),
+    outputs=[
+        gr.Textbox(label="Answer", lines=3),
+        gr.Markdown(label="Sources")
+    ],
+    title="📚 Personal Document RAG Assistant",
+    description=(
+        "Ask questions about your documents. "
+        "Powered by AI search & generation."
+    ),
+    examples=EXAMPLES,
+    css=CUSTOM_CSS,
 )
 
 
@@ -461,5 +232,10 @@ st.markdown(
 
 if __name__ == "__main__":
 
-    print("Starting Streamlit app...", flush=True)
-    print("Run: streamlit run app.py", flush=True)
+    print("Starting Gradio app...", flush=True)
+    print("Local URL: http://localhost:7860", flush=True)
+
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+    )

@@ -1,4 +1,4 @@
-streamlit
+gradio
 numpy
 scikit-learn
 sentence-transformers
