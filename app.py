@@ -16,17 +16,6 @@ LLM_MODEL = "sshleifer/tiny-gpt2"
 
 TOP_K = 3
 
-EXAMPLES = [
-    "What is Docker?",
-    "What is an EC2 instance?",
-    "How do I connect to a Linux server?",
-    "What is DNS?",
-    "What is HTTPS?",
-    "What is a virtual machine?",
-    "How does cloud computing work?",
-    "What is an API?",
-]
-
 
 # ============================================================
 # Load data
@@ -38,7 +27,7 @@ embeddings = np.load(EMBEDDINGS_PATH)
 with open(CHUNKS_PATH, "r", encoding="utf-8") as file:
     chunks = json.load(file)
 
-print(f"Chunks: {len(chunks)}", flush=True)
+print(f"Chunks: {len(chunks)} loaded", flush=True)
 
 hf_client = InferenceClient()
 
@@ -97,22 +86,20 @@ def search(query):
 
 
 # ============================================================
-# Chat
+# Chat function
 # ============================================================
 
-def chat(query, history):
+def respond(message, history):
 
-    if not query or not query.strip():
+    if not message or not message.strip():
 
-        return history, ""
+        return ""
 
-    results = search(query)
+    results = search(message)
 
     if not results:
 
-        history.append((query, "No relevant documents found. Try rephrasing."))
-
-        return history, ""
+        return "No relevant documents found. Try rephrasing your question."
 
     context_parts = []
 
@@ -125,7 +112,7 @@ def chat(query, history):
     prompt = (
         f"Based on the following information, answer the question.\n\n"
         f"Information:\n{context}\n\n"
-        f"Question: {query}\n"
+        f"Question: {message}\n"
         f"Answer:"
     )
 
@@ -150,8 +137,8 @@ def chat(query, history):
 
         answer = context_parts[0][:300] + "..."
 
-    # Format answer with sources
-    source_text = ""
+    # Add sources
+    sources = "\n\n---\n**Sources:**\n"
 
     for result in results:
 
@@ -159,23 +146,12 @@ def chat(query, history):
 
         score_pct = result["score"] * 100
 
-        source_text += (
-            f"\n\n---\n"
-            f"**Source {result['rank']}** ({chunk.get('filename', 'Unknown')}) "
-            f"— Relevance: {score_pct:.0f}%\n"
-            f"> {chunk.get('text', '')[:200]}..."
+        sources += (
+            f"- **{chunk.get('filename', 'Unknown')}** "
+            f"(Relevance: {score_pct:.0f}%)\n"
         )
 
-    full_answer = answer + source_text
-
-    history.append((query, full_answer))
-
-    return history, ""
-
-
-def clear_chat():
-
-    return [], ""
+    return answer + sources
 
 
 # ============================================================
@@ -184,10 +160,13 @@ def clear_chat():
 
 CUSTOM_CSS = """
 
+/* Hide footer */
+footer { display: none !important; }
+
 /* Title */
-.main-title {
+.gradio-container .main-title {
     text-align: center;
-    font-size: 2.2em !important;
+    font-size: 2em !important;
     font-weight: 700;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     -webkit-background-clip: text;
@@ -195,32 +174,32 @@ CUSTOM_CSS = """
     margin-bottom: 0 !important;
 }
 
-.subtitle {
+.gradio-container .subtitle {
     text-align: center;
     color: #888;
     font-size: 1em;
     margin-top: -10px !important;
-    margin-bottom: 1rem !important;
+    margin-bottom: 0.5rem !important;
 }
 
-/* Chatbot container */
+/* Chat container */
 .chatbot {
     border-radius: 16px !important;
     border: 1px solid #e0e0e0 !important;
-    min-height: 400px !important;
+    min-height: 450px !important;
 }
 
-/* Input */
-.query-input textarea {
+/* Input box */
+.chat-input textarea {
     border-radius: 16px !important;
     border: 2px solid #e0e0e0 !important;
-    font-size: 1.05em !important;
-    padding: 14px !important;
+    font-size: 1em !important;
+    padding: 12px 16px !important;
 }
 
-.query-input textarea:focus {
+.chat-input textarea:focus {
     border-color: #667eea !important;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12) !important;
 }
 
 /* Send button */
@@ -229,13 +208,13 @@ CUSTOM_CSS = """
     color: white !important;
     border: none !important;
     border-radius: 16px !important;
-    font-size: 1.1em !important;
+    min-width: 100px !important;
     font-weight: 600 !important;
-    min-width: 120px !important;
 }
 
 .send-btn:hover {
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+    transform: translateY(-1px);
 }
 
 /* Clear button */
@@ -243,6 +222,7 @@ CUSTOM_CSS = """
     border-radius: 16px !important;
     border: 2px solid #e0e0e0 !important;
     background: white !important;
+    min-width: 50px !important;
 }
 
 .clear-btn:hover {
@@ -250,33 +230,17 @@ CUSTOM_CSS = """
     color: #ff4b4b !important;
 }
 
-/* Examples */
-.example-btn {
-    border-radius: 20px !important;
-    border: 1.5px solid #d0d5ff !important;
-    background: white !important;
-    font-size: 0.85em !important;
-    padding: 8px 16px !important;
-}
-
-.example-btn:hover {
-    background: #f0f3ff !important;
-    border-color: #667eea !important;
-}
-
-/* Stats bar */
+/* Stats */
 .stats-bar {
     background: linear-gradient(135deg, #f5f7ff 0%, #f0f3ff 100%);
     border-radius: 10px;
-    padding: 8px 16px;
-    font-size: 0.85em;
-    color: #666;
+    padding: 6px 14px;
+    font-size: 0.82em;
+    color: #777;
     border: 1px solid #e8ecff;
     text-align: center;
-    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
 }
-
-footer { display: none !important; }
 """
 
 
@@ -284,104 +248,61 @@ footer { display: none !important; }
 # Build UI
 # ============================================================
 
-with gr.Blocks(css=CUSTOM_CSS, title="RAG Chatbot") as demo:
+with gr.Blocks(css=CUSTOM_CSS, title="RAG Chatbot", theme=gr.themes.Soft()) as demo:
 
     # Header
-    gr.Markdown(
-        '<div class="main-title">📚 Personal RAG Assistant</div>'
-        '<p class="subtitle">Ask questions about your documents</p>'
+    gr.HTML(
+        '<div style="text-align:center; margin-bottom:0.5rem;">'
+        '<div class="main-title">📚 RAG Assistant</div>'
+        '<p class="subtitle">Ask anything about your documents</p>'
+        "</div>"
     )
 
     # Stats
-    gr.Markdown(
+    gr.HTML(
         f'<div class="stats-bar">'
-        f"📊 {len(chunks)} chunks indexed &nbsp;|&nbsp; "
-        f"🤖 tiny-gpt2 &nbsp;|&nbsp; "
-        f"🔍 {TOP_K} results per query"
+        f"{len(chunks)} chunks indexed &nbsp;|&nbsp; "
+        f"LLM: tiny-gpt2 &nbsp;|&nbsp; "
+        f"Results: {TOP_K} per query"
         f"</div>"
     )
 
-    # Examples
-    with gr.Row():
-
-        for ex in EXAMPLES[:4]:
-
-            btn = gr.Button(ex, elem_classes=["example-btn"], scale=1)
-
-            btn.click(
-                fn=lambda text=ex: text,
-                outputs=None,
-                js=f"() => {{ document.querySelector('.query-input textarea').value = '{ex}'; return []; }}",
-            )
-
-    with gr.Row():
-
-        for ex in EXAMPLES[4:]:
-
-            btn = gr.Button(ex, elem_classes=["example-btn"], scale=1)
-
-            btn.click(
-                fn=lambda text=ex: text,
-                outputs=None,
-                js=f"() => {{ document.querySelector('.query-input textarea').value = '{ex}'; return []; }}",
-            )
-
-    gr.Markdown("---")
-
-    # Chatbot
-    chatbot = gr.Chatbot(
-        label="",
-        height=420,
-        show_copy_button=True,
-    )
-
-    # Input row
-    with gr.Row():
-
-        query_input = gr.Textbox(
-            label="",
+    # Chat interface
+    gr.ChatInterface(
+        fn=respond,
+        chatbot=gr.Chatbot(
+            height=450,
+            show_copy_button=True,
+            avatar_images=(
+                None,
+                "https://em-content.zobj.net/source/twitter/408/books_1f4da.png",
+            ),
+        ),
+        textbox=gr.Textbox(
             placeholder="Ask anything about your documents...",
-            lines=1,
-            max_lines=3,
-            elem_classes=["query-input"],
-            show_label=False,
-            scale=5,
-        )
-
-        send_btn = gr.Button(
-            "Send ➤",
-            elem_classes=["send-btn"],
-            scale=1,
-        )
-
-        clear_btn = gr.Button(
-            "✕",
-            elem_classes=["clear-btn"],
-            scale=0,
-        )
-
-    # Events
-    send_btn.click(
-        fn=chat,
-        inputs=[query_input, chatbot],
-        outputs=[chatbot, query_input],
-    )
-
-    query_input.submit(
-        fn=chat,
-        inputs=[query_input, chatbot],
-        outputs=[chatbot, query_input],
-    )
-
-    clear_btn.click(
-        fn=clear_chat,
-        outputs=[chatbot, query_input],
+            container=True,
+            scale=7,
+            elem_classes=["chat-input"],
+        ),
+        submit_btn="Send ➤",
+        clear_btn="Clear",
+        examples=[
+            "What is Docker?",
+            "What is an EC2 instance?",
+            "How do I connect to a Linux server?",
+            "What is DNS?",
+            "What is HTTPS?",
+            "What is a virtual machine?",
+            "How does cloud computing work?",
+            "What is an API?",
+        ],
+        cache_examples=False,
     )
 
     # Footer
-    gr.Markdown(
-        '<p style="text-align:center; color:#aaa; font-size:0.8em; margin-top:1rem;">'
-        "Embedding: all-MiniLM-L6-v2 &nbsp;|&nbsp; LLM: tiny-gpt2 &nbsp;|&nbsp; Built with Gradio"
+    gr.HTML(
+        '<p style="text-align:center; color:#aaa; font-size:0.75em; margin-top:0.5rem;">'
+        "Embedding: all-MiniLM-L6-v2 | LLM: tiny-gpt2 | Built with Gradio"
         "</p>"
     )
 
