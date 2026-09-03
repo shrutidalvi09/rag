@@ -12,7 +12,6 @@ from huggingface_hub import InferenceClient
 EMBEDDINGS_PATH = "vector_store/embeddings.npy"
 CHUNKS_PATH = "vector_store/chunks.json"
 
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 LLM_MODEL = "sshleifer/tiny-gpt2"
 
 TOP_K = 3
@@ -31,7 +30,7 @@ EXAMPLES = [
 
 
 # ============================================================
-# Load data only (no ML models)
+# Load data
 # ============================================================
 
 print("Loading vector store...", flush=True)
@@ -42,24 +41,61 @@ with open(CHUNKS_PATH, "r", encoding="utf-8") as file:
 
 print(f"Chunks: {len(chunks)}", flush=True)
 
-print("Initializing HuggingFace Inference API...", flush=True)
+print("Initializing HuggingFace API...", flush=True)
 hf_client = InferenceClient()
 
-print("All loaded!\n", flush=True)
+print("Ready!\n", flush=True)
 
 
 # ============================================================
-# Embed query via HuggingFace API
+# Keyword-based search (no API needed)
 # ============================================================
 
-def get_embedding(text):
+def keyword_search(query, chunks):
 
-    result = hf_client.feature_extraction(
-        text,
-        model=EMBEDDING_MODEL,
-    )
+    query_words = set(query.lower().split())
 
-    return result[0]
+    scores = []
+
+    for chunk in chunks:
+
+        text = chunk.get("text", "").lower()
+
+        chunk_words = set(text.split())
+
+        overlap = len(query_words.intersection(chunk_words))
+
+        scores.append(overlap)
+
+    scores = np.array(scores, dtype=float)
+
+    if scores.max() == 0:
+
+        return []
+
+    scores = scores / scores.max()
+
+    top_indices = scores.argsort()[::-1][:TOP_K]
+
+    results = []
+
+    rank = 1
+
+    for idx in top_indices:
+
+        if scores[idx] < 0.1:
+
+            continue
+
+        results.append({
+            "rank": rank,
+            "score": float(scores[idx]),
+            "chunk": chunks[idx]
+        })
+
+        rank += 1
+
+    return results
 
 
 # ============================================================
@@ -72,44 +108,8 @@ def ask_question(query):
 
         return "Please enter a question.", ""
 
-    # Get query embedding via API
-    query_embedding = get_embedding(query)
-
-    query_embedding = query_embedding / np.linalg.norm(query_embedding)
-
-    # Normalize stored embeddings
-    embeddings_norm = embeddings / np.linalg.norm(
-        embeddings,
-        axis=1,
-        keepdims=True
-    )
-
-    # Calculate similarity
-    similarities = np.dot(embeddings_norm, query_embedding)
-
-    # Sort by score
-    top_indices = similarities.argsort()[::-1]
-
-    # Collect results
-    results = []
-
-    for index in top_indices:
-
-        score = similarities[index]
-
-        if score < SIMILARITY_THRESHOLD:
-            continue
-
-        results.append(
-            {
-                "rank": len(results) + 1,
-                "score": float(score),
-                "chunk": chunks[index]
-            }
-        )
-
-        if len(results) >= TOP_K:
-            break
+    # Search using keyword matching (fast, no API)
+    results = keyword_search(query, chunks)
 
     if not results:
 
@@ -140,9 +140,8 @@ def ask_question(query):
         generated_text = hf_client.text_generation(
             prompt,
             model=LLM_MODEL,
-            max_new_tokens=150,
+            max_new_tokens=100,
             temperature=0.7,
-            do_sample=True,
         )
 
         answer_start = generated_text.find("Answer:") + len("Answer:")
@@ -155,7 +154,10 @@ def ask_question(query):
 
     except Exception as e:
 
-        answer = f"Error: {str(e)}"
+        # Fallback: extract relevant sentence from context
+        answer = (
+            f"Based on the documents: {context_parts[0][:300]}..."
+        )
 
     # Build sources
     sources = ""
@@ -169,13 +171,12 @@ def ask_question(query):
         sources += (
             f"### Source {result['rank']} — {chunk.get('filename', 'Unknown')}\n"
             f"**Relevance:** {score_pct:.1f}%\n\n"
-            f"> {chunk.get('text', '')}\n\n"
+            f"> {chunk.get('text', '')[:500]}\n\n"
             f"---\n\n"
         )
 
     stats = (
         f"**Results:** {len(results)} matches | "
-        f"**Top Score:** {results[0]['score']:.4f} | "
         f"**Chunks:** {len(chunks)}"
     )
 
