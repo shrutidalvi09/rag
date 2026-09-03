@@ -16,6 +16,17 @@ LLM_MODEL = "sshleifer/tiny-gpt2"
 
 TOP_K = 3
 
+EXAMPLES = [
+    "What is Docker?",
+    "What is an EC2 instance?",
+    "How do I connect to a Linux server?",
+    "What is DNS?",
+    "What is HTTPS?",
+    "What is a virtual machine?",
+    "How does cloud computing work?",
+    "What is an API?",
+]
+
 
 # ============================================================
 # Load data
@@ -137,8 +148,8 @@ def respond(message, history):
 
         answer = context_parts[0][:300] + "..."
 
-    # Add sources
-    sources = "\n\n---\n**Sources:**\n"
+    # Add sources as expandable section
+    sources = "\n\n<details><summary>📄 View Sources</summary>\n\n"
 
     for result in results:
 
@@ -147,9 +158,12 @@ def respond(message, history):
         score_pct = result["score"] * 100
 
         sources += (
-            f"- **{chunk.get('filename', 'Unknown')}** "
-            f"(Relevance: {score_pct:.0f}%)\n"
+            f"**{result['rank']}. {chunk.get('filename', 'Unknown')}** "
+            f"— Relevance: {score_pct:.0f}%\n"
+            f"> {chunk.get('text', '')[:250]}...\n\n"
         )
+
+    sources += "</details>"
 
     return answer + sources
 
@@ -160,46 +174,96 @@ def respond(message, history):
 
 CUSTOM_CSS = """
 
-/* Hide footer */
+/* Hide default footer */
 footer { display: none !important; }
 
+/* Page background */
+.gradio-container {
+    background: linear-gradient(135deg, #f5f7ff 0%, #e8ecff 50%, #f0f3ff 100%) !important;
+    max-width: 900px !important;
+    margin: auto !important;
+    padding: 10px !important;
+}
+
 /* Title */
-.gradio-container .main-title {
+.app-title {
     text-align: center;
-    font-size: 2em !important;
-    font-weight: 700;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-size: 2.4em !important;
+    font-weight: 800;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 0 !important;
+    letter-spacing: -0.5px;
 }
 
-.gradio-container .subtitle {
+.app-subtitle {
     text-align: center;
     color: #888;
-    font-size: 1em;
-    margin-top: -10px !important;
-    margin-bottom: 0.5rem !important;
+    font-size: 1.05em;
+    margin-top: -8px !important;
+    margin-bottom: 1rem !important;
 }
 
-/* Chat container */
+/* Stats card */
+.stats-card {
+    background: white;
+    border-radius: 14px;
+    padding: 10px 20px;
+    font-size: 0.85em;
+    color: #666;
+    border: 1px solid #e0e0e0;
+    text-align: center;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.stats-card strong {
+    color: #667eea;
+}
+
+/* Example buttons */
+.example-chip {
+    border-radius: 20px !important;
+    border: 1.5px solid #d0d5ff !important;
+    background: white !important;
+    font-size: 0.82em !important;
+    padding: 6px 14px !important;
+    transition: all 0.25s ease !important;
+    cursor: pointer !important;
+}
+
+.example-chip:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border-color: transparent !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
+}
+
+/* Chatbot */
 .chatbot {
-    border-radius: 16px !important;
+    border-radius: 20px !important;
     border: 1px solid #e0e0e0 !important;
-    min-height: 450px !important;
+    min-height: 480px !important;
+    background: white !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important;
 }
 
-/* Input box */
+/* Input */
 .chat-input textarea {
-    border-radius: 16px !important;
+    border-radius: 20px !important;
     border: 2px solid #e0e0e0 !important;
     font-size: 1em !important;
-    padding: 12px 16px !important;
+    padding: 14px 18px !important;
+    transition: all 0.3s ease !important;
+    background: #fafbff !important;
 }
 
 .chat-input textarea:focus {
     border-color: #667eea !important;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12) !important;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12) !important;
+    background: white !important;
 }
 
 /* Send button */
@@ -207,39 +271,58 @@ footer { display: none !important; }
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
     color: white !important;
     border: none !important;
-    border-radius: 16px !important;
-    min-width: 100px !important;
-    font-weight: 600 !important;
+    border-radius: 20px !important;
+    font-weight: 700 !important;
+    font-size: 1em !important;
+    padding: 10px 28px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
 }
 
 .send-btn:hover {
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-    transform: translateY(-1px);
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5) !important;
+}
+
+.send-btn:active {
+    transform: translateY(0) !important;
+}
+
+/* Stop button */
+.stop-btn {
+    border-radius: 20px !important;
+    background: #ff4b4b !important;
+    color: white !important;
+    border: none !important;
 }
 
 /* Clear button */
 .clear-btn {
-    border-radius: 16px !important;
+    border-radius: 20px !important;
     border: 2px solid #e0e0e0 !important;
     background: white !important;
-    min-width: 50px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
 }
 
 .clear-btn:hover {
     border-color: #ff4b4b !important;
     color: #ff4b4b !important;
+    background: #fff5f5 !important;
 }
 
-/* Stats */
-.stats-bar {
-    background: linear-gradient(135deg, #f5f7ff 0%, #f0f3ff 100%);
-    border-radius: 10px;
-    padding: 6px 14px;
-    font-size: 0.82em;
-    color: #777;
-    border: 1px solid #e8ecff;
+/* Footer */
+.app-footer {
     text-align: center;
-    margin-bottom: 0.5rem;
+    color: #bbb;
+    font-size: 0.75em;
+    margin-top: 1rem;
+    padding: 0.5rem;
+}
+
+.app-footer span {
+    color: #667eea;
+    font-weight: 600;
 }
 """
 
@@ -252,58 +335,58 @@ with gr.Blocks(css=CUSTOM_CSS, title="RAG Chatbot", theme=gr.themes.Soft()) as d
 
     # Header
     gr.HTML(
-        '<div style="text-align:center; margin-bottom:0.5rem;">'
-        '<div class="main-title">📚 RAG Assistant</div>'
-        '<p class="subtitle">Ask anything about your documents</p>'
-        "</div>"
+        '<div class="app-title">📚 RAG Assistant</div>'
+        '<p class="app-subtitle">Ask anything about your documents</p>'
     )
 
     # Stats
     gr.HTML(
-        f'<div class="stats-bar">'
-        f"{len(chunks)} chunks indexed &nbsp;|&nbsp; "
-        f"LLM: tiny-gpt2 &nbsp;|&nbsp; "
-        f"Results: {TOP_K} per query"
+        f'<div class="stats-card">'
+        f"📊 <strong>{len(chunks)}</strong> chunks indexed &nbsp;&bull;&nbsp; "
+        f"🤖 <strong>tiny-gpt2</strong> &nbsp;&bull;&nbsp; "
+        f"🔍 <strong>{TOP_K}</strong> results"
         f"</div>"
     )
+
+    # Example chips
+    with gr.Row(elem_classes=["examples-row"]):
+
+        for i, ex in enumerate(EXAMPLES):
+
+            btn = gr.Button(ex, elem_classes=["example-chip"], scale=1, min_width=0)
+
+    gr.HTML('<div style="margin: 0.5rem 0;"></div>')
 
     # Chat interface
     gr.ChatInterface(
         fn=respond,
         chatbot=gr.Chatbot(
-            height=450,
+            height=480,
             show_copy_button=True,
             avatar_images=(
                 None,
                 "https://em-content.zobj.net/source/twitter/408/books_1f4da.png",
             ),
+            placeholder="Ask me anything about your documents...",
         ),
         textbox=gr.Textbox(
-            placeholder="Ask anything about your documents...",
-            container=True,
+            placeholder="Type your question here...",
+            container=False,
             scale=7,
             elem_classes=["chat-input"],
         ),
         submit_btn="Send ➤",
-        clear_btn="Clear",
-        examples=[
-            "What is Docker?",
-            "What is an EC2 instance?",
-            "How do I connect to a Linux server?",
-            "What is DNS?",
-            "What is HTTPS?",
-            "What is a virtual machine?",
-            "How does cloud computing work?",
-            "What is an API?",
-        ],
-        cache_examples=False,
+        stop_btn="⏹ Stop",
+        clear_btn="🗑 Clear",
     )
 
     # Footer
     gr.HTML(
-        '<p style="text-align:center; color:#aaa; font-size:0.75em; margin-top:0.5rem;">'
-        "Embedding: all-MiniLM-L6-v2 | LLM: tiny-gpt2 | Built with Gradio"
-        "</p>"
+        '<div class="app-footer">'
+        "Built with <span>Gradio</span> &bull; "
+        "Embeddings: <span>all-MiniLM-L6-v2</span> &bull; "
+        "LLM: <span>tiny-gpt2</span>"
+        "</div>"
     )
 
 
