@@ -1,0 +1,34 @@
+[
+    {
+        "filename": "aws.txt",
+        "text": "AWS stands for Amazon Web Services. AWS is a cloud computing platform. Amazon EC2 is a service that provides virtual servers in the cloud. EC2 instances can be used to run applications and websites. Amazon S3 is an object storage service. AWS Lambda is a serverless compute service."
+    },
+    {
+        "filename": "aws.txt",
+        "text": "service. AWS Lambda is a serverless compute service."
+    },
+    {
+        "filename": "docker.txt",
+        "text": "Docker is a containerization platform. Docker allows applications to run inside containers. Containers package applications together with their dependencies. A Docker image is a template used to create containers. A Docker container is a running instance of a Docker image. Dockerfiles are used to create Docker images."
+    },
+    {
+        "filename": "docker.txt",
+        "text": "Dockerfiles are used to create Docker images."
+    },
+    {
+        "filename": "linux.txt",
+        "text": "Linux is an open-source operating system. Linux servers are commonly used in cloud environments. SSH is commonly used to remotely connect to Linux servers. The ls command displays files and directories. The cd command changes the current directory. The pwd command displays the current working directory."
+    },
+    {
+        "filename": "linux.txt",
+        "text": "command displays the current working directory."
+    },
+    {
+        "filename": "networking.txt",
+        "text": "DNS translates domain names into IP addresses. A firewall filters network traffic for security. TCP is a reliable protocol for data transmission. UDP is a fast but unreliable protocol. An IP address uniquely identifies a device on a network. A subnet divides a network into smaller segments. HTTP is the"
+    },
+    {
+        "filename": "networking.txt",
+        "text": "subnet divides a network into smaller segments. HTTP is the protocol used for web browsing. HTTPS encrypts web traffic for secure communication."
+    }
+]

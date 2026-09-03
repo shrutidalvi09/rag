@@ -1,0 +1,8 @@
+DNS translates domain names into IP addresses.
+A firewall filters network traffic for security.
+TCP is a reliable protocol for data transmission.
+UDP is a fast but unreliable protocol.
+An IP address uniquely identifies a device on a network.
+A subnet divides a network into smaller segments.
+HTTP is the protocol used for web browsing.
+HTTPS encrypts web traffic for secure communication.

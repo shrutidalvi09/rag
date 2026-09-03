@@ -1,0 +1,6 @@
+Docker is a containerization platform.
+Docker allows applications to run inside containers.
+Containers package applications together with their dependencies.
+A Docker image is a template used to create containers.
+A Docker container is a running instance of a Docker image.
+Dockerfiles are used to create Docker images.

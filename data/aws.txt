@@ -1,0 +1,6 @@
+AWS stands for Amazon Web Services.
+AWS is a cloud computing platform.
+Amazon EC2 is a service that provides virtual servers in the cloud.
+EC2 instances can be used to run applications and websites.
+Amazon S3 is an object storage service.
+AWS Lambda is a serverless compute service.

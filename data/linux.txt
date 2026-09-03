@@ -1,0 +1,6 @@
+Linux is an open-source operating system.
+Linux servers are commonly used in cloud environments.
+SSH is commonly used to remotely connect to Linux servers.
+The ls command displays files and directories.
+The cd command changes the current directory.
+The pwd command displays the current working directory.
