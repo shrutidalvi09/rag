@@ -15,17 +15,16 @@ CHUNKS_PATH = "vector_store/chunks.json"
 LLM_MODEL = "sshleifer/tiny-gpt2"
 
 TOP_K = 3
-SIMILARITY_THRESHOLD = 0.30
 
 EXAMPLES = [
-    ["What is Docker?"],
-    ["What is an EC2 instance?"],
-    ["How do I connect to a Linux server?"],
-    ["What is DNS?"],
-    ["What is HTTPS?"],
-    ["What is a virtual machine?"],
-    ["How does cloud computing work?"],
-    ["What is an API?"],
+    "What is Docker?",
+    "What is an EC2 instance?",
+    "How do I connect to a Linux server?",
+    "What is DNS?",
+    "What is HTTPS?",
+    "What is a virtual machine?",
+    "How does cloud computing work?",
+    "What is an API?",
 ]
 
 
@@ -41,17 +40,16 @@ with open(CHUNKS_PATH, "r", encoding="utf-8") as file:
 
 print(f"Chunks: {len(chunks)}", flush=True)
 
-print("Initializing HuggingFace API...", flush=True)
 hf_client = InferenceClient()
 
 print("Ready!\n", flush=True)
 
 
 # ============================================================
-# Keyword-based search (no API needed)
+# Search
 # ============================================================
 
-def keyword_search(query, chunks):
+def search(query):
 
     query_words = set(query.lower().split())
 
@@ -99,37 +97,33 @@ def keyword_search(query, chunks):
 
 
 # ============================================================
-# RAG Function
+# Chat
 # ============================================================
 
-def ask_question(query):
+def chat(query, history):
 
     if not query or not query.strip():
 
-        return "Please enter a question.", ""
+        return history, ""
 
-    # Search using keyword matching (fast, no API)
-    results = keyword_search(query, chunks)
+    results = search(query)
 
     if not results:
 
-        return "No relevant documents found. Try rephrasing your question.", ""
+        history.append((query, "No relevant documents found. Try rephrasing."))
 
-    # Build context
+        return history, ""
+
     context_parts = []
 
     for result in results:
 
-        chunk = result["chunk"]
-
-        context_parts.append(chunk.get("text", ""))
+        context_parts.append(result["chunk"].get("text", ""))
 
     context = "\n".join(context_parts)
 
-    # Generate answer using HuggingFace API
     prompt = (
-        f"Based on the following information, "
-        f"answer the question.\n\n"
+        f"Based on the following information, answer the question.\n\n"
         f"Information:\n{context}\n\n"
         f"Question: {query}\n"
         f"Answer:"
@@ -152,15 +146,12 @@ def ask_question(query):
 
             answer = generated_text.strip()
 
-    except Exception as e:
+    except Exception:
 
-        # Fallback: extract relevant sentence from context
-        answer = (
-            f"Based on the documents: {context_parts[0][:300]}..."
-        )
+        answer = context_parts[0][:300] + "..."
 
-    # Build sources
-    sources = ""
+    # Format answer with sources
+    source_text = ""
 
     for result in results:
 
@@ -168,19 +159,23 @@ def ask_question(query):
 
         score_pct = result["score"] * 100
 
-        sources += (
-            f"### Source {result['rank']} — {chunk.get('filename', 'Unknown')}\n"
-            f"**Relevance:** {score_pct:.1f}%\n\n"
-            f"> {chunk.get('text', '')[:500]}\n\n"
-            f"---\n\n"
+        source_text += (
+            f"\n\n---\n"
+            f"**Source {result['rank']}** ({chunk.get('filename', 'Unknown')}) "
+            f"— Relevance: {score_pct:.0f}%\n"
+            f"> {chunk.get('text', '')[:200]}..."
         )
 
-    stats = (
-        f"**Results:** {len(results)} matches | "
-        f"**Chunks:** {len(chunks)}"
-    )
+    full_answer = answer + source_text
 
-    return answer, sources + "\n\n" + stats
+    history.append((query, full_answer))
+
+    return history, ""
+
+
+def clear_chat():
+
+    return [], ""
 
 
 # ============================================================
@@ -188,19 +183,97 @@ def ask_question(query):
 # ============================================================
 
 CUSTOM_CSS = """
+
+/* Title */
 .main-title {
     text-align: center;
-    font-size: 2em !important;
+    font-size: 2.2em !important;
     font-weight: 700;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    margin-bottom: 0 !important;
 }
 
-.main-subtitle {
+.subtitle {
     text-align: center;
+    color: #888;
+    font-size: 1em;
+    margin-top: -10px !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Chatbot container */
+.chatbot {
+    border-radius: 16px !important;
+    border: 1px solid #e0e0e0 !important;
+    min-height: 400px !important;
+}
+
+/* Input */
+.query-input textarea {
+    border-radius: 16px !important;
+    border: 2px solid #e0e0e0 !important;
+    font-size: 1.05em !important;
+    padding: 14px !important;
+}
+
+.query-input textarea:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
+}
+
+/* Send button */
+.send-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 16px !important;
+    font-size: 1.1em !important;
+    font-weight: 600 !important;
+    min-width: 120px !important;
+}
+
+.send-btn:hover {
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+/* Clear button */
+.clear-btn {
+    border-radius: 16px !important;
+    border: 2px solid #e0e0e0 !important;
+    background: white !important;
+}
+
+.clear-btn:hover {
+    border-color: #ff4b4b !important;
+    color: #ff4b4b !important;
+}
+
+/* Examples */
+.example-btn {
+    border-radius: 20px !important;
+    border: 1.5px solid #d0d5ff !important;
+    background: white !important;
+    font-size: 0.85em !important;
+    padding: 8px 16px !important;
+}
+
+.example-btn:hover {
+    background: #f0f3ff !important;
+    border-color: #667eea !important;
+}
+
+/* Stats bar */
+.stats-bar {
+    background: linear-gradient(135deg, #f5f7ff 0%, #f0f3ff 100%);
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 0.85em;
     color: #666;
-    font-size: 1.05em;
+    border: 1px solid #e8ecff;
+    text-align: center;
+    margin-top: 0.5rem;
 }
 
 footer { display: none !important; }
@@ -211,25 +284,108 @@ footer { display: none !important; }
 # Build UI
 # ============================================================
 
-demo = gr.Interface(
-    fn=ask_question,
-    inputs=gr.Textbox(
-        label="Ask a question",
-        placeholder="e.g. What is Docker?",
-        lines=1
-    ),
-    outputs=[
-        gr.Textbox(label="Answer", lines=3),
-        gr.Markdown(label="Sources")
-    ],
-    title="📚 Personal Document RAG Assistant",
-    description=(
-        "Ask questions about your documents. "
-        "Powered by AI search & generation."
-    ),
-    examples=EXAMPLES,
-    css=CUSTOM_CSS,
-)
+with gr.Blocks(css=CUSTOM_CSS, title="RAG Chatbot") as demo:
+
+    # Header
+    gr.Markdown(
+        '<div class="main-title">📚 Personal RAG Assistant</div>'
+        '<p class="subtitle">Ask questions about your documents</p>'
+    )
+
+    # Stats
+    gr.Markdown(
+        f'<div class="stats-bar">'
+        f"📊 {len(chunks)} chunks indexed &nbsp;|&nbsp; "
+        f"🤖 tiny-gpt2 &nbsp;|&nbsp; "
+        f"🔍 {TOP_K} results per query"
+        f"</div>"
+    )
+
+    # Examples
+    with gr.Row():
+
+        for ex in EXAMPLES[:4]:
+
+            btn = gr.Button(ex, elem_classes=["example-btn"], scale=1)
+
+            btn.click(
+                fn=lambda text=ex: text,
+                outputs=None,
+                js=f"() => {{ document.querySelector('.query-input textarea').value = '{ex}'; return []; }}",
+            )
+
+    with gr.Row():
+
+        for ex in EXAMPLES[4:]:
+
+            btn = gr.Button(ex, elem_classes=["example-btn"], scale=1)
+
+            btn.click(
+                fn=lambda text=ex: text,
+                outputs=None,
+                js=f"() => {{ document.querySelector('.query-input textarea').value = '{ex}'; return []; }}",
+            )
+
+    gr.Markdown("---")
+
+    # Chatbot
+    chatbot = gr.Chatbot(
+        label="",
+        height=420,
+        bubble_full_width=False,
+        show_copy_button=True,
+        avatar_images=(None, "https://em-content.zobj.net/source/twitter/408/books_1f4da.png"),
+    )
+
+    # Input row
+    with gr.Row():
+
+        query_input = gr.Textbox(
+            label="",
+            placeholder="Ask anything about your documents...",
+            lines=1,
+            max_lines=3,
+            elem_classes=["query-input"],
+            show_label=False,
+            scale=5,
+        )
+
+        send_btn = gr.Button(
+            "Send ➤",
+            elem_classes=["send-btn"],
+            scale=1,
+        )
+
+        clear_btn = gr.Button(
+            "✕",
+            elem_classes=["clear-btn"],
+            scale=0,
+        )
+
+    # Events
+    send_btn.click(
+        fn=chat,
+        inputs=[query_input, chatbot],
+        outputs=[chatbot, query_input],
+    )
+
+    query_input.submit(
+        fn=chat,
+        inputs=[query_input, chatbot],
+        outputs=[chatbot, query_input],
+    )
+
+    clear_btn.click(
+        fn=clear_chat,
+        outputs=[chatbot, query_input],
+    )
+
+    # Footer
+    gr.Markdown(
+        '<p style="text-align:center; color:#aaa; font-size:0.8em; margin-top:1rem;">'
+        "Embedding: all-MiniLM-L6-v2 &nbsp;|&nbsp; LLM: tiny-gpt2 &nbsp;|&nbsp; Built with Gradio"
+        "</p>"
+    )
 
 
 # ============================================================
@@ -238,7 +394,7 @@ demo = gr.Interface(
 
 if __name__ == "__main__":
 
-    print("Starting Gradio app...", flush=True)
+    print("Starting Gradio chatbot...", flush=True)
 
     demo.launch(
         server_name="0.0.0.0",
