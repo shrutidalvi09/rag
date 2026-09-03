@@ -332,9 +332,7 @@ with gr.Blocks(css=CUSTOM_CSS, title="RAG Chatbot") as demo:
     chatbot = gr.Chatbot(
         label="",
         height=420,
-        bubble_full_width=False,
         show_copy_button=True,
-        avatar_images=(None, "https://em-content.zobj.net/source/twitter/408/books_1f4da.png"),
     )
 
     # Input row
